@@ -2,6 +2,9 @@
 
 A full-stack web application for managing team projects and tasks with role-based access control.
 
+### 🔗 [Live Application](https://team-task-manager-production.up.railway.app)
+### 🎥 [Watch Demo Video](#) *(Add your Loom/YouTube link here)*
+
 ## Tech Stack
 
 - **Frontend:** React + Vite + Tailwind CSS
