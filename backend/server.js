@@ -34,7 +34,7 @@ const PORT = process.env.PORT || 5000;
 
 const startServer = async () => {
   try {
-    let mongoUri = process.env.MONGO_URI;
+    let mongoUri = process.env.MONGO_URI || process.env.MONGO_URL;
     
     if (!mongoUri) {
       throw new Error("MONGO_URI environment variable is missing. Please add it in Railway Variables!");
