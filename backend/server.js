@@ -36,6 +36,10 @@ const startServer = async () => {
   try {
     let mongoUri = process.env.MONGO_URI;
     
+    if (!mongoUri) {
+      throw new Error("MONGO_URI environment variable is missing. Please add it in Railway Variables!");
+    }
+    
     if (mongoUri.includes('localhost')) {
       const { MongoMemoryServer } = require('mongodb-memory-server');
       const mongoServer = await MongoMemoryServer.create();
