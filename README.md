@@ -2,14 +2,11 @@
 
 A full-stack web application for managing team projects and tasks with role-based access control.
 
-### 🔗 [Live Application](https://team-task-manager-production.up.railway.app)
-### 🎥 [Watch Demo Video](#) *(Add your Loom/YouTube link here)*
-
 ## Tech Stack
 
 - **Frontend:** React + Vite + Tailwind CSS
-- **Backend:** Node.js + Express
-- **Database:** MongoDB + Mongoose
+- **Backend:** Node.js + Express (Vercel Serverless)
+- **Database:** MongoDB Atlas
 - **Auth:** JWT + bcrypt
 
 ## Project Structure
@@ -17,13 +14,15 @@ A full-stack web application for managing team projects and tasks with role-base
 ```
 team-task-manager/
 ├── backend/
+│   ├── api/            Vercel serverless entry point
 │   ├── controllers/
 │   ├── middleware/
 │   ├── models/
 │   ├── routes/
 │   ├── seed/
+│   ├── vercel.json
 │   ├── .env.example
-│   └── server.js
+│   └── server.js       (local dev only)
 ├── frontend/
 │   ├── src/
 │   │   ├── api/
@@ -31,61 +30,100 @@ team-task-manager/
 │   │   ├── context/
 │   │   ├── pages/
 │   │   └── utils/
+│   ├── vercel.json
 │   ├── .env.example
 │   └── index.html
 └── README.md
 ```
 
-## Roles
+---
 
-- **Admin** – Can create/delete projects, manage members, create/update/delete tasks
-- **Member** – Can view assigned projects/tasks, update task status only
-
-## Setup Instructions
+## Local Development
 
 ### Prerequisites
-
 - Node.js v18+
 - MongoDB (local or Atlas)
 
-### 1. Clone the repo
-
 ```bash
-git clone <repo-url>
-cd team-task-manager
-```
-
-### 2. Backend Setup
-
-```bash
+# Backend
 cd backend
 npm install
 cp .env.example .env
-# Fill in your MongoDB URI and JWT secret in .env
+# Fill in MONGO_URI and JWT_SECRET
 npm run dev
-```
 
-### 3. Frontend Setup
-
-```bash
+# Frontend (new terminal)
 cd frontend
 npm install
 cp .env.example .env
-# Make sure VITE_API_URL matches your backend port
+# Set VITE_API_URL=http://localhost:5000/api
 npm run dev
 ```
 
-### 4. Seed Dummy Data (optional)
-
+Seed dummy data:
 ```bash
 cd backend
 node seed/seed.js
+# admin@example.com / password123
+# member@example.com / password123
 ```
 
-This creates:
-- Admin user: `admin@example.com` / `password123`
-- Member user: `member@example.com` / `password123`
-- 2 sample projects with tasks
+---
+
+## Deploying to Vercel
+
+You'll deploy **backend** and **frontend** as two separate Vercel projects.
+
+### Step 1 — Set up MongoDB Atlas
+
+1. Go to [mongodb.com/atlas](https://www.mongodb.com/atlas) and create a free cluster
+2. Create a database user (username + password)
+3. Whitelist all IPs: `0.0.0.0/0` (required for Vercel serverless)
+4. Copy your connection string — it looks like:
+   ```
+   mongodb+srv://username:password@cluster0.xxxxx.mongodb.net/team-task-manager
+   ```
+
+### Step 2 — Deploy the Backend
+
+1. Push your code to GitHub (if not already)
+2. Go to [vercel.com](https://vercel.com) → **Add New Project**
+3. Import your repo, set **Root Directory** to `backend`
+4. Add these **Environment Variables** in Vercel:
+
+   | Key | Value |
+   |-----|-------|
+   | `MONGO_URI` | your Atlas connection string |
+   | `JWT_SECRET` | any long random string |
+   | `JWT_EXPIRES_IN` | `7d` |
+   | `FRONTEND_URL` | *(leave blank for now, add after frontend deploy)* |
+
+5. Click **Deploy**
+6. Copy the deployed URL, e.g. `https://team-task-manager-backend.vercel.app`
+
+### Step 3 — Deploy the Frontend
+
+1. Go to [vercel.com](https://vercel.com) → **Add New Project**
+2. Import the same repo, set **Root Directory** to `frontend`
+3. Add this **Environment Variable**:
+
+   | Key | Value |
+   |-----|-------|
+   | `VITE_API_URL` | `https://your-backend.vercel.app/api` |
+
+4. Click **Deploy**
+5. Copy the frontend URL, e.g. `https://team-task-manager-frontend.vercel.app`
+
+### Step 4 — Link them together
+
+1. Go back to your **backend** project on Vercel
+2. Settings → Environment Variables → add/update:
+   ```
+   FRONTEND_URL = https://team-task-manager-frontend.vercel.app
+   ```
+3. Redeploy the backend (Deployments → Redeploy)
+
+---
 
 ## API Endpoints
 
@@ -122,10 +160,12 @@ This creates:
 |--------|----------|-------------|
 | GET | /api/dashboard | Get dashboard stats |
 
+---
+
 ## MongoDB Schema Relations
 
 - **User** – standalone, referenced by Project and Task
 - **Project** – has `createdBy` (User ref) and `members` (array of User refs)
 - **Task** – belongs to a `project` (Project ref), has `assignedTo` (User ref)
 
-Relation flow: `User → Project → Task`, where tasks link back to both a project and a user.
+Relation flow: `User → Project → Task`
