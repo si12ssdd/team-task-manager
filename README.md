@@ -1,5 +1,7 @@
 # TaskFlow — Team Task Manager
 
+**Live Demo:** https://team-task-manager-uwcf.vercel.app
+
 A full-stack project I built for managing team tasks and projects. The idea was simple — admins create projects, add people, assign tasks. Members log in and see what's assigned to them and update progress.
 
 Tech: React + Vite, Node/Express, MongoDB Atlas, JWT auth, Tailwind CSS.
@@ -85,10 +87,10 @@ This is deployed as two separate Vercel projects — backend (serverless) and fr
 MONGO_URI        = your Atlas connection string
 JWT_SECRET       = some random secret
 JWT_EXPIRES_IN   = 7d
-FRONTEND_URL     = (leave blank for now, add after frontend is deployed)
+FRONTEND_URL     = https://team-task-manager-uwcf.vercel.app
 ```
 
-4. Deploy. Copy the URL it gives you — something like `https://taskflow-backend.vercel.app`
+4. Deploy. Backend is live at: https://team-task-manager-omega-five.vercel.app
 
 ### Frontend
 
@@ -97,19 +99,19 @@ FRONTEND_URL     = (leave blank for now, add after frontend is deployed)
 3. Add this env variable:
 
 ```
-VITE_API_URL = https://your-backend-url.vercel.app/api
+VITE_API_URL = https://team-task-manager-omega-five.vercel.app/api
 ```
 
 Make sure to add `/api` at the end — that's the base path for all API routes.
 
-4. Deploy. Copy the frontend URL.
+4. Deploy. Frontend is live at: https://team-task-manager-uwcf.vercel.app
 
 ### Last step
 
 Go back to the **backend** Vercel project → Settings → Environment Variables → add:
 
 ```
-FRONTEND_URL = https://your-frontend-url.vercel.app
+FRONTEND_URL = https://team-task-manager-uwcf.vercel.app
 ```
 
 Then redeploy the backend. This is needed for CORS to work properly.
