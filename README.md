@@ -1,123 +1,171 @@
 # TaskFlow — Team Task Manager
 
-A full-stack task management app I built for managing projects and tasks across a team. Supports two roles — Admin and Member — with different levels of access.
+A full-stack project I built for managing team tasks and projects. The idea was simple — admins create projects, add people, assign tasks. Members log in and see what's assigned to them and update progress.
 
-Built with React, Node/Express, MongoDB Atlas, and JWT auth.
-
----
-
-## What it does
-
-- Admins can create projects, add team members, and manage tasks
-- Members can view their assigned tasks and update status
-- Dashboard shows a quick overview of task counts and recent activity
-- Kanban-style board on the project detail page (Todo / In Progress / Done)
-- Tasks have priority levels, due dates, and assignees
+Tech: React + Vite, Node/Express, MongoDB Atlas, JWT auth, Tailwind CSS.
 
 ---
 
-## Stack
+## Features
 
-- **Frontend:** React + Vite + Tailwind CSS
-- **Backend:** Node.js + Express
-- **Database:** MongoDB Atlas (Mongoose)
-- **Auth:** JWT + bcrypt
+- JWT-based login and registration
+- Two roles: **Admin** (full control) and **Member** (view + update status only)
+- Create projects, add/remove team members
+- Tasks with priority, due date, and assignee
+- Kanban board per project (Todo → In Progress → Done)
+- Dashboard with task counts and recent activity
+- Overdue task highlighting
 
 ---
 
-## Running locally
+## Local Setup
 
-You'll need Node 18+ and a MongoDB connection (local or Atlas).
+You need Node 18+ and either a local MongoDB or an Atlas URI.
 
-**Backend:**
+**1. Backend**
+
 ```bash
 cd backend
 npm install
 cp .env.example .env
-# fill in MONGO_URI and JWT_SECRET
-npm run dev
 ```
 
-**Frontend:**
+Open `.env` and fill in:
+
+```
+MONGO_URI=your_mongodb_connection_string
+JWT_SECRET=anything_random_here
+JWT_EXPIRES_IN=7d
+```
+
+```bash
+npm run dev
+# runs on http://localhost:5000
+```
+
+**2. Frontend**
+
 ```bash
 cd frontend
 npm install
 cp .env.example .env
-# set VITE_API_URL=http://localhost:5000/api
-npm run dev
 ```
 
-**Seed some dummy data:**
+Set `VITE_API_URL=http://localhost:5000/api` in the `.env`, then:
+
+```bash
+npm run dev
+# runs on http://localhost:5173
+```
+
+**3. Seed test data (optional but useful)**
+
 ```bash
 cd backend
 node seed/seed.js
 ```
 
-This creates two users:
-- `admin@example.com` / `password123` (Admin)
-- `member@example.com` / `password123` (Member)
+Creates these accounts:
+- `admin@example.com` / `password123`
+- `member@example.com` / `password123`
 
 ---
 
-## Deploying to Vercel
+## Deploying on Vercel
 
-The project is split into two separate Vercel deployments — one for the backend (serverless), one for the frontend.
+This is deployed as two separate Vercel projects — backend (serverless) and frontend (static).
 
-### Backend
+### Backend first
 
-1. Import the repo on Vercel, set root directory to `backend`
-2. Add env vars: `MONGO_URI`, `JWT_SECRET`, `JWT_EXPIRES_IN=7d`, `FRONTEND_URL`
-3. Deploy
+1. Go to [vercel.com](https://vercel.com) → New Project → import this repo
+2. Set **Root Directory** to `backend`
+3. Add these environment variables:
+
+```
+MONGO_URI        = your Atlas connection string
+JWT_SECRET       = some random secret
+JWT_EXPIRES_IN   = 7d
+FRONTEND_URL     = (leave blank for now, add after frontend is deployed)
+```
+
+4. Deploy. Copy the URL it gives you — something like `https://taskflow-backend.vercel.app`
 
 ### Frontend
 
-1. Import the same repo, set root directory to `frontend`
-2. Add env var: `VITE_API_URL=https://your-backend.vercel.app/api`
-3. Deploy
+1. New Project again → same repo
+2. Set **Root Directory** to `frontend`
+3. Add this env variable:
 
-After both are live, go back to the backend project and set `FRONTEND_URL` to the frontend URL, then redeploy.
+```
+VITE_API_URL = https://your-backend-url.vercel.app/api
+```
 
----
+Make sure to add `/api` at the end — that's the base path for all API routes.
 
-## API overview
+4. Deploy. Copy the frontend URL.
 
-| Method | Route | Auth | Notes |
-|--------|-------|------|-------|
-| POST | /api/auth/register | — | |
-| POST | /api/auth/login | — | |
-| GET | /api/auth/me | ✓ | |
-| GET | /api/projects | ✓ | |
-| POST | /api/projects | Admin | |
-| GET | /api/projects/:id | ✓ | |
-| PUT | /api/projects/:id | Admin | |
-| DELETE | /api/projects/:id | Admin | |
-| POST | /api/projects/:id/members | Admin | |
-| DELETE | /api/projects/:id/members/:userId | Admin | |
-| GET | /api/tasks | ✓ | |
-| POST | /api/tasks | Admin | |
-| PUT | /api/tasks/:id | ✓ | members can only update status |
-| DELETE | /api/tasks/:id | Admin | |
-| GET | /api/tasks/project/:projectId | ✓ | |
-| GET | /api/dashboard | ✓ | |
+### Last step
+
+Go back to the **backend** Vercel project → Settings → Environment Variables → add:
+
+```
+FRONTEND_URL = https://your-frontend-url.vercel.app
+```
+
+Then redeploy the backend. This is needed for CORS to work properly.
 
 ---
 
-## Folder structure
+## MongoDB Atlas note
+
+If you're using Atlas (required for Vercel), make sure you go to **Network Access** and add `0.0.0.0/0` to allow connections from anywhere. Vercel uses dynamic IPs so you can't whitelist a specific one.
+
+---
+
+## API Routes
+
+**Auth**
+- `POST /api/auth/register`
+- `POST /api/auth/login`
+- `GET /api/auth/me` — requires token
+
+**Projects** — all require token, write operations are admin only
+- `GET /api/projects`
+- `POST /api/projects`
+- `GET /api/projects/:id`
+- `PUT /api/projects/:id`
+- `DELETE /api/projects/:id`
+- `POST /api/projects/:id/members`
+- `DELETE /api/projects/:id/members/:userId`
+
+**Tasks** — all require token, members can only update status
+- `GET /api/tasks`
+- `POST /api/tasks` — admin only
+- `GET /api/tasks/:id`
+- `PUT /api/tasks/:id`
+- `DELETE /api/tasks/:id` — admin only
+- `GET /api/tasks/project/:projectId`
+
+**Dashboard**
+- `GET /api/dashboard`
+
+---
+
+## Project Structure
 
 ```
 backend/
-  api/          vercel serverless entry
-  controllers/
-  middleware/   auth + role check
-  models/       User, Project, Task
-  routes/
-  seed/
+├── api/index.js        Vercel serverless entry point
+├── controllers/
+├── middleware/         JWT auth + role check
+├── models/             User, Project, Task
+├── routes/
+└── seed/
 
-frontend/
-  src/
-    api/        axios instance
-    components/ Layout, Sidebar, Modal, badges, etc.
-    context/    AuthContext
-    pages/      Login, Register, Dashboard, Projects, Tasks
-    utils/      date helpers
+frontend/src/
+├── api/                axios setup
+├── components/         Sidebar, Modal, badges, Layout
+├── context/            AuthContext (login/logout/session)
+├── pages/              Login, Register, Dashboard, Projects, Tasks
+└── utils/              date formatting helpers
 ```
