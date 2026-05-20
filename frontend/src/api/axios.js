@@ -15,10 +15,15 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
+    const status = error.response?.status;
+    const url = error.config?.url || '';
+
+    // only auto-redirect on 401 for protected routes, not for login/register
+    if (status === 401 && !url.includes('/auth/login') && !url.includes('/auth/register')) {
       localStorage.removeItem('token');
       window.location.href = '/login';
     }
+
     return Promise.reject(error);
   }
 );
