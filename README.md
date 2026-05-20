@@ -1,171 +1,123 @@
-# Team Task Manager
+# TaskFlow — Team Task Manager
 
-A full-stack web application for managing team projects and tasks with role-based access control.
+A full-stack task management app I built for managing projects and tasks across a team. Supports two roles — Admin and Member — with different levels of access.
 
-## Tech Stack
-
-- **Frontend:** React + Vite + Tailwind CSS
-- **Backend:** Node.js + Express (Vercel Serverless)
-- **Database:** MongoDB Atlas
-- **Auth:** JWT + bcrypt
-
-## Project Structure
-
-```
-team-task-manager/
-├── backend/
-│   ├── api/            Vercel serverless entry point
-│   ├── controllers/
-│   ├── middleware/
-│   ├── models/
-│   ├── routes/
-│   ├── seed/
-│   ├── vercel.json
-│   ├── .env.example
-│   └── server.js       (local dev only)
-├── frontend/
-│   ├── src/
-│   │   ├── api/
-│   │   ├── components/
-│   │   ├── context/
-│   │   ├── pages/
-│   │   └── utils/
-│   ├── vercel.json
-│   ├── .env.example
-│   └── index.html
-└── README.md
-```
+Built with React, Node/Express, MongoDB Atlas, and JWT auth.
 
 ---
 
-## Local Development
+## What it does
 
-### Prerequisites
-- Node.js v18+
-- MongoDB (local or Atlas)
+- Admins can create projects, add team members, and manage tasks
+- Members can view their assigned tasks and update status
+- Dashboard shows a quick overview of task counts and recent activity
+- Kanban-style board on the project detail page (Todo / In Progress / Done)
+- Tasks have priority levels, due dates, and assignees
 
+---
+
+## Stack
+
+- **Frontend:** React + Vite + Tailwind CSS
+- **Backend:** Node.js + Express
+- **Database:** MongoDB Atlas (Mongoose)
+- **Auth:** JWT + bcrypt
+
+---
+
+## Running locally
+
+You'll need Node 18+ and a MongoDB connection (local or Atlas).
+
+**Backend:**
 ```bash
-# Backend
 cd backend
 npm install
 cp .env.example .env
-# Fill in MONGO_URI and JWT_SECRET
+# fill in MONGO_URI and JWT_SECRET
 npm run dev
+```
 
-# Frontend (new terminal)
+**Frontend:**
+```bash
 cd frontend
 npm install
 cp .env.example .env
-# Set VITE_API_URL=http://localhost:5000/api
+# set VITE_API_URL=http://localhost:5000/api
 npm run dev
 ```
 
-Seed dummy data:
+**Seed some dummy data:**
 ```bash
 cd backend
 node seed/seed.js
-# admin@example.com / password123
-# member@example.com / password123
 ```
+
+This creates two users:
+- `admin@example.com` / `password123` (Admin)
+- `member@example.com` / `password123` (Member)
 
 ---
 
 ## Deploying to Vercel
 
-You'll deploy **backend** and **frontend** as two separate Vercel projects.
+The project is split into two separate Vercel deployments — one for the backend (serverless), one for the frontend.
 
-### Step 1 — Set up MongoDB Atlas
+### Backend
 
-1. Go to [mongodb.com/atlas](https://www.mongodb.com/atlas) and create a free cluster
-2. Create a database user (username + password)
-3. Whitelist all IPs: `0.0.0.0/0` (required for Vercel serverless)
-4. Copy your connection string — it looks like:
-   ```
-   mongodb+srv://username:password@cluster0.xxxxx.mongodb.net/team-task-manager
-   ```
+1. Import the repo on Vercel, set root directory to `backend`
+2. Add env vars: `MONGO_URI`, `JWT_SECRET`, `JWT_EXPIRES_IN=7d`, `FRONTEND_URL`
+3. Deploy
 
-### Step 2 — Deploy the Backend
+### Frontend
 
-1. Push your code to GitHub (if not already)
-2. Go to [vercel.com](https://vercel.com) → **Add New Project**
-3. Import your repo, set **Root Directory** to `backend`
-4. Add these **Environment Variables** in Vercel:
+1. Import the same repo, set root directory to `frontend`
+2. Add env var: `VITE_API_URL=https://your-backend.vercel.app/api`
+3. Deploy
 
-   | Key | Value |
-   |-----|-------|
-   | `MONGO_URI` | your Atlas connection string |
-   | `JWT_SECRET` | any long random string |
-   | `JWT_EXPIRES_IN` | `7d` |
-   | `FRONTEND_URL` | *(leave blank for now, add after frontend deploy)* |
-
-5. Click **Deploy**
-6. Copy the deployed URL, e.g. `https://team-task-manager-backend.vercel.app`
-
-### Step 3 — Deploy the Frontend
-
-1. Go to [vercel.com](https://vercel.com) → **Add New Project**
-2. Import the same repo, set **Root Directory** to `frontend`
-3. Add this **Environment Variable**:
-
-   | Key | Value |
-   |-----|-------|
-   | `VITE_API_URL` | `https://your-backend.vercel.app/api` |
-
-4. Click **Deploy**
-5. Copy the frontend URL, e.g. `https://team-task-manager-frontend.vercel.app`
-
-### Step 4 — Link them together
-
-1. Go back to your **backend** project on Vercel
-2. Settings → Environment Variables → add/update:
-   ```
-   FRONTEND_URL = https://team-task-manager-frontend.vercel.app
-   ```
-3. Redeploy the backend (Deployments → Redeploy)
+After both are live, go back to the backend project and set `FRONTEND_URL` to the frontend URL, then redeploy.
 
 ---
 
-## API Endpoints
+## API overview
 
-### Auth
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | /api/auth/register | Register new user |
-| POST | /api/auth/login | Login user |
-| GET | /api/auth/me | Get current user |
-
-### Projects
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | /api/projects | Get all projects for user |
-| POST | /api/projects | Create project (Admin) |
-| GET | /api/projects/:id | Get single project |
-| PUT | /api/projects/:id | Update project (Admin) |
-| DELETE | /api/projects/:id | Delete project (Admin) |
-| POST | /api/projects/:id/members | Add member (Admin) |
-| DELETE | /api/projects/:id/members/:userId | Remove member (Admin) |
-
-### Tasks
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | /api/tasks | Get all tasks for user |
-| POST | /api/tasks | Create task (Admin) |
-| GET | /api/tasks/:id | Get single task |
-| PUT | /api/tasks/:id | Update task |
-| DELETE | /api/tasks/:id | Delete task (Admin) |
-| GET | /api/tasks/project/:projectId | Get tasks by project |
-
-### Dashboard
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | /api/dashboard | Get dashboard stats |
+| Method | Route | Auth | Notes |
+|--------|-------|------|-------|
+| POST | /api/auth/register | — | |
+| POST | /api/auth/login | — | |
+| GET | /api/auth/me | ✓ | |
+| GET | /api/projects | ✓ | |
+| POST | /api/projects | Admin | |
+| GET | /api/projects/:id | ✓ | |
+| PUT | /api/projects/:id | Admin | |
+| DELETE | /api/projects/:id | Admin | |
+| POST | /api/projects/:id/members | Admin | |
+| DELETE | /api/projects/:id/members/:userId | Admin | |
+| GET | /api/tasks | ✓ | |
+| POST | /api/tasks | Admin | |
+| PUT | /api/tasks/:id | ✓ | members can only update status |
+| DELETE | /api/tasks/:id | Admin | |
+| GET | /api/tasks/project/:projectId | ✓ | |
+| GET | /api/dashboard | ✓ | |
 
 ---
 
-## MongoDB Schema Relations
+## Folder structure
 
-- **User** – standalone, referenced by Project and Task
-- **Project** – has `createdBy` (User ref) and `members` (array of User refs)
-- **Task** – belongs to a `project` (Project ref), has `assignedTo` (User ref)
+```
+backend/
+  api/          vercel serverless entry
+  controllers/
+  middleware/   auth + role check
+  models/       User, Project, Task
+  routes/
+  seed/
 
-Relation flow: `User → Project → Task`
+frontend/
+  src/
+    api/        axios instance
+    components/ Layout, Sidebar, Modal, badges, etc.
+    context/    AuthContext
+    pages/      Login, Register, Dashboard, Projects, Tasks
+    utils/      date helpers
+```

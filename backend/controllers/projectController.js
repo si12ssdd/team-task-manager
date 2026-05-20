@@ -2,20 +2,19 @@ const Project = require('../models/Project');
 const Task = require('../models/Task');
 const User = require('../models/User');
 
+const populateProject = (query) =>
+  query
+    .populate('createdBy', 'name email')
+    .populate('members', 'name email role');
+
 const getProjects = async (req, res) => {
   try {
-    let projects;
+    const filter =
+      req.user.role === 'admin'
+        ? { createdBy: req.user._id }
+        : { members: req.user._id };
 
-    if (req.user.role === 'admin') {
-      projects = await Project.find({ createdBy: req.user._id })
-        .populate('createdBy', 'name email')
-        .populate('members', 'name email role');
-    } else {
-      projects = await Project.find({ members: req.user._id })
-        .populate('createdBy', 'name email')
-        .populate('members', 'name email role');
-    }
-
+    const projects = await populateProject(Project.find(filter));
     res.json(projects);
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -25,8 +24,8 @@ const getProjects = async (req, res) => {
 const createProject = async (req, res) => {
   const { title, description, members } = req.body;
 
-  if (!title) {
-    return res.status(400).json({ message: 'Project title is required' });
+  if (!title?.trim()) {
+    return res.status(400).json({ message: 'Project needs a title' });
   }
 
   try {
@@ -37,12 +36,8 @@ const createProject = async (req, res) => {
       members: members || [],
     });
 
-    const populated = await project.populate([
-      { path: 'createdBy', select: 'name email' },
-      { path: 'members', select: 'name email role' },
-    ]);
-
-    res.status(201).json(populated);
+    const result = await populateProject(Project.findById(project._id));
+    res.status(201).json(result);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -50,19 +45,17 @@ const createProject = async (req, res) => {
 
 const getProjectById = async (req, res) => {
   try {
-    const project = await Project.findById(req.params.id)
-      .populate('createdBy', 'name email')
-      .populate('members', 'name email role');
+    const project = await populateProject(Project.findById(req.params.id));
 
-    if (!project) {
-      return res.status(404).json({ message: 'Project not found' });
-    }
+    if (!project) return res.status(404).json({ message: 'Project not found' });
 
-    const isMember = project.members.some((m) => m._id.toString() === req.user._id.toString());
-    const isOwner = project.createdBy._id.toString() === req.user._id.toString();
+    const uid = req.user._id.toString();
+    const hasAccess =
+      project.createdBy._id.toString() === uid ||
+      project.members.some((m) => m._id.toString() === uid);
 
-    if (!isMember && !isOwner) {
-      return res.status(403).json({ message: 'You do not have access to this project' });
+    if (!hasAccess) {
+      return res.status(403).json({ message: "You're not part of this project" });
     }
 
     res.json(project);
@@ -72,28 +65,19 @@ const getProjectById = async (req, res) => {
 };
 
 const updateProject = async (req, res) => {
-  const { title, description } = req.body;
-
   try {
     const project = await Project.findById(req.params.id);
-
-    if (!project) {
-      return res.status(404).json({ message: 'Project not found' });
-    }
+    if (!project) return res.status(404).json({ message: 'Project not found' });
 
     if (project.createdBy.toString() !== req.user._id.toString()) {
-      return res.status(403).json({ message: 'Only the project creator can update it' });
+      return res.status(403).json({ message: 'Only the owner can edit this project' });
     }
 
-    project.title = title || project.title;
-    project.description = description !== undefined ? description : project.description;
+    if (req.body.title) project.title = req.body.title;
+    if (req.body.description !== undefined) project.description = req.body.description;
 
     await project.save();
-
-    const updated = await Project.findById(project._id)
-      .populate('createdBy', 'name email')
-      .populate('members', 'name email role');
-
+    const updated = await populateProject(Project.findById(project._id));
     res.json(updated);
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -103,19 +87,17 @@ const updateProject = async (req, res) => {
 const deleteProject = async (req, res) => {
   try {
     const project = await Project.findById(req.params.id);
-
-    if (!project) {
-      return res.status(404).json({ message: 'Project not found' });
-    }
+    if (!project) return res.status(404).json({ message: 'Project not found' });
 
     if (project.createdBy.toString() !== req.user._id.toString()) {
-      return res.status(403).json({ message: 'Only the project creator can delete it' });
+      return res.status(403).json({ message: 'Only the owner can delete this project' });
     }
 
+    // clean up tasks too
     await Task.deleteMany({ project: project._id });
     await project.deleteOne();
 
-    res.json({ message: 'Project and its tasks deleted successfully' });
+    res.json({ message: 'Project deleted' });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -123,42 +105,30 @@ const deleteProject = async (req, res) => {
 
 const addMember = async (req, res) => {
   const { email } = req.body;
-
-  if (!email) {
-    return res.status(400).json({ message: 'Member email is required' });
-  }
+  if (!email) return res.status(400).json({ message: 'Email is required' });
 
   try {
     const project = await Project.findById(req.params.id);
-
-    if (!project) {
-      return res.status(404).json({ message: 'Project not found' });
-    }
+    if (!project) return res.status(404).json({ message: 'Project not found' });
 
     if (project.createdBy.toString() !== req.user._id.toString()) {
-      return res.status(403).json({ message: 'Only the project creator can add members' });
+      return res.status(403).json({ message: 'Only the owner can add members' });
     }
 
-    const userToAdd = await User.findOne({ email });
-    if (!userToAdd) {
+    const newMember = await User.findOne({ email });
+    if (!newMember) {
       return res.status(404).json({ message: 'No user found with that email' });
     }
 
-    const alreadyMember = project.members.some(
-      (m) => m.toString() === userToAdd._id.toString()
-    );
-
-    if (alreadyMember) {
-      return res.status(400).json({ message: 'User is already a member of this project' });
+    const alreadyIn = project.members.some((m) => m.toString() === newMember._id.toString());
+    if (alreadyIn) {
+      return res.status(400).json({ message: 'That person is already in this project' });
     }
 
-    project.members.push(userToAdd._id);
+    project.members.push(newMember._id);
     await project.save();
 
-    const updated = await Project.findById(project._id)
-      .populate('createdBy', 'name email')
-      .populate('members', 'name email role');
-
+    const updated = await populateProject(Project.findById(project._id));
     res.json(updated);
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -168,25 +138,18 @@ const addMember = async (req, res) => {
 const removeMember = async (req, res) => {
   try {
     const project = await Project.findById(req.params.id);
-
-    if (!project) {
-      return res.status(404).json({ message: 'Project not found' });
-    }
+    if (!project) return res.status(404).json({ message: 'Project not found' });
 
     if (project.createdBy.toString() !== req.user._id.toString()) {
-      return res.status(403).json({ message: 'Only the project creator can remove members' });
+      return res.status(403).json({ message: 'Only the owner can remove members' });
     }
 
     project.members = project.members.filter(
       (m) => m.toString() !== req.params.userId
     );
-
     await project.save();
 
-    const updated = await Project.findById(project._id)
-      .populate('createdBy', 'name email')
-      .populate('members', 'name email role');
-
+    const updated = await populateProject(Project.findById(project._id));
     res.json(updated);
   } catch (err) {
     res.status(500).json({ message: err.message });

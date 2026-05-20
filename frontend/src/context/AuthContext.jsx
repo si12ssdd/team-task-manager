@@ -9,42 +9,38 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     const token = localStorage.getItem('token');
-    if (token) {
-      fetchCurrentUser(token);
-    } else {
+    if (!token) {
       setLoading(false);
+      return;
     }
-  }, []);
 
-  const fetchCurrentUser = async (token) => {
-    try {
-      api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-      const res = await api.get('/auth/me');
-      setUser(res.data);
-    } catch (err) {
-      localStorage.removeItem('token');
-      delete api.defaults.headers.common['Authorization'];
-    } finally {
-      setLoading(false);
-    }
-  };
+    // try to restore session from stored token
+    api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+    api.get('/auth/me')
+      .then((res) => setUser(res.data))
+      .catch(() => {
+        localStorage.removeItem('token');
+        delete api.defaults.headers.common['Authorization'];
+      })
+      .finally(() => setLoading(false));
+  }, []);
 
   const login = async (email, password) => {
     const res = await api.post('/auth/login', { email, password });
-    const { token, ...userData } = res.data;
+    const { token, ...rest } = res.data;
     localStorage.setItem('token', token);
     api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-    setUser(userData);
-    return userData;
+    setUser(rest);
+    return rest;
   };
 
   const register = async (name, email, password, role) => {
     const res = await api.post('/auth/register', { name, email, password, role });
-    const { token, ...userData } = res.data;
+    const { token, ...rest } = res.data;
     localStorage.setItem('token', token);
     api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-    setUser(userData);
-    return userData;
+    setUser(rest);
+    return rest;
   };
 
   const logout = () => {
@@ -62,6 +58,6 @@ export function AuthProvider({ children }) {
 
 export function useAuth() {
   const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error('useAuth must be used inside AuthProvider');
+  if (!ctx) throw new Error('useAuth must be inside AuthProvider');
   return ctx;
 }

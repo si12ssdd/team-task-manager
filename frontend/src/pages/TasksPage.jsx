@@ -6,10 +6,6 @@ import PriorityBadge from '../components/PriorityBadge';
 import Spinner from '../components/Spinner';
 import toast from 'react-hot-toast';
 import { formatDate, isOverdue } from '../utils/dateUtils';
-import { Search, Trash2, Inbox } from 'lucide-react';
-
-const statusOptions = ['all', 'todo', 'in-progress', 'completed'];
-const priorityOptions = ['all', 'low', 'medium', 'high'];
 
 function TasksPage() {
   const { user } = useAuth();
@@ -17,202 +13,171 @@ function TasksPage() {
 
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [priorityFilter, setPriorityFilter] = useState('all');
-  const [search, setSearch] = useState('');
 
   useEffect(() => {
-    const fetchTasks = async () => {
-      try {
-        const res = await api.get('/tasks');
-        setTasks(res.data);
-      } catch (err) {
-        toast.error('Failed to load tasks');
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchTasks();
+    api.get('/tasks')
+      .then((res) => setTasks(res.data))
+      .catch(() => toast.error('Failed to load tasks'))
+      .finally(() => setLoading(false));
   }, []);
 
-  const handleStatusChange = async (task, newStatus) => {
+  const updateStatus = async (task, newStatus) => {
     try {
       const res = await api.put(`/tasks/${task._id}`, { status: newStatus });
       setTasks(tasks.map((t) => (t._id === task._id ? res.data : t)));
-      toast.success('Status updated');
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to update status');
+      toast.error(err.response?.data?.message || 'Could not update status');
     }
   };
 
-  const handleDelete = async (taskId) => {
+  const deleteTask = async (taskId) => {
     if (!window.confirm('Delete this task?')) return;
     try {
       await api.delete(`/tasks/${taskId}`);
       setTasks(tasks.filter((t) => t._id !== taskId));
       toast.success('Task deleted');
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to delete task');
+      toast.error(err.response?.data?.message || 'Delete failed');
     }
   };
 
-  const filtered = tasks.filter((task) => {
-    const matchStatus = statusFilter === 'all' || task.status === statusFilter;
-    const matchPriority = priorityFilter === 'all' || task.priority === priorityFilter;
-    const matchSearch =
-      !search ||
-      task.title.toLowerCase().includes(search.toLowerCase()) ||
-      task.project?.title?.toLowerCase().includes(search.toLowerCase());
-    return matchStatus && matchPriority && matchSearch;
+  const visible = tasks.filter((t) => {
+    if (statusFilter !== 'all' && t.status !== statusFilter) return false;
+    if (priorityFilter !== 'all' && t.priority !== priorityFilter) return false;
+    if (search) {
+      const q = search.toLowerCase();
+      return t.title.toLowerCase().includes(q) || t.project?.title?.toLowerCase().includes(q);
+    }
+    return true;
   });
 
   if (loading) return <Spinner />;
 
   return (
-    <div className="animate-in fade-in duration-500">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 tracking-tight">Tasks</h1>
-        <p className="text-gray-500 mt-2 font-medium">
+    <div>
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-gray-900">Tasks</h1>
+        <p className="text-sm text-gray-500 mt-0.5">
           {isAdmin ? 'All tasks across your projects' : 'Tasks assigned to you'}
         </p>
       </div>
 
-      {/* Filters */}
-      <div className="flex flex-wrap gap-4 mb-8">
-        <div className="relative flex-1 min-w-[200px] max-w-xs">
-          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <Search size={16} className="text-gray-400" />
-          </div>
-          <input
-            type="text"
-            placeholder="Search tasks..."
-            className="input-field pl-10"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-        </div>
-        <select
-          className="input-field w-auto min-w-[140px]"
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-        >
-          {statusOptions.map((s) => (
-            <option key={s} value={s}>
-              {s === 'all' ? 'All Status' : s === 'in-progress' ? 'In Progress' : s.charAt(0).toUpperCase() + s.slice(1)}
-            </option>
-          ))}
+      {/* filters */}
+      <div className="flex flex-wrap gap-3 mb-5">
+        <input
+          type="text"
+          placeholder="Search..."
+          className="input-field max-w-xs"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+        <select className="input-field w-auto" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+          <option value="all">All Status</option>
+          <option value="todo">Todo</option>
+          <option value="in-progress">In Progress</option>
+          <option value="completed">Completed</option>
         </select>
-        <select
-          className="input-field w-auto min-w-[140px]"
-          value={priorityFilter}
-          onChange={(e) => setPriorityFilter(e.target.value)}
-        >
-          {priorityOptions.map((p) => (
-            <option key={p} value={p}>
-              {p === 'all' ? 'All Priority' : p.charAt(0).toUpperCase() + p.slice(1)}
-            </option>
-          ))}
+        <select className="input-field w-auto" value={priorityFilter} onChange={(e) => setPriorityFilter(e.target.value)}>
+          <option value="all">All Priority</option>
+          <option value="low">Low</option>
+          <option value="medium">Medium</option>
+          <option value="high">High</option>
         </select>
       </div>
 
-      {/* Task table */}
-      {filtered.length === 0 ? (
-        <div className="card flex flex-col items-center justify-center py-16 text-center border-dashed border-2">
-          <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mb-4 border border-gray-100 shadow-sm">
-            <Inbox className="text-gray-400" size={32} />
-          </div>
-          <h3 className="text-lg font-semibold text-gray-900 mb-1">No tasks found</h3>
-          <p className="text-gray-500 max-w-sm">We couldn't find any tasks matching your current filters.</p>
+      {visible.length === 0 ? (
+        <div className="text-center py-16 text-gray-400">
+          <p className="font-medium text-gray-500">No tasks found</p>
+          <p className="text-sm mt-1">Try adjusting your filters.</p>
         </div>
       ) : (
-        <div className="card p-0 overflow-hidden border-gray-200/60 shadow-sm shadow-gray-200/30">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-gray-100 bg-gray-50/80">
-                  <th className="text-left px-6 py-4 font-semibold text-gray-700 tracking-wide">Task</th>
-                  <th className="text-left px-6 py-4 font-semibold text-gray-700 tracking-wide">Project</th>
-                  <th className="text-left px-6 py-4 font-semibold text-gray-700 tracking-wide">Assigned To</th>
-                  <th className="text-left px-6 py-4 font-semibold text-gray-700 tracking-wide">Priority</th>
-                  <th className="text-left px-6 py-4 font-semibold text-gray-700 tracking-wide">Due Date</th>
-                  <th className="text-left px-6 py-4 font-semibold text-gray-700 tracking-wide">Status</th>
-                  <th className="px-6 py-4"></th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50">
-                {filtered.map((task) => {
-                  const overdue = isOverdue(task.dueDate) && task.status !== 'completed';
-                  const canChangeStatus = isAdmin || task.assignedTo?._id === user._id;
+        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50 border-b border-gray-100">
+              <tr>
+                <th className="text-left px-4 py-3 font-semibold text-gray-600">Task</th>
+                <th className="text-left px-4 py-3 font-semibold text-gray-600">Project</th>
+                <th className="text-left px-4 py-3 font-semibold text-gray-600">Assigned</th>
+                <th className="text-left px-4 py-3 font-semibold text-gray-600">Priority</th>
+                <th className="text-left px-4 py-3 font-semibold text-gray-600">Due</th>
+                <th className="text-left px-4 py-3 font-semibold text-gray-600">Status</th>
+                <th className="px-4 py-3 w-10"></th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {visible.map((task) => {
+                const late = isOverdue(task.dueDate) && task.status !== 'completed';
+                const canEdit = isAdmin || task.assignedTo?._id === user._id;
 
-                  return (
-                    <tr key={task._id} className="hover:bg-gray-50/80 transition-colors group">
-                      <td className="px-6 py-4">
-                        <p className="font-semibold text-gray-900">{task.title}</p>
-                        {task.description && (
-                          <p className="text-xs text-gray-500 mt-1 truncate max-w-xs">{task.description}</p>
-                        )}
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className="bg-gray-100 text-gray-600 px-2.5 py-1 rounded-md text-xs uppercase tracking-wider font-medium">
-                          {task.project?.title || '—'}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4">
-                        {task.assignedTo ? (
-                          <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-100 to-indigo-50 border border-blue-200/50 flex items-center justify-center text-xs font-bold text-blue-700 shadow-sm">
-                              {task.assignedTo.name?.charAt(0).toUpperCase()}
-                            </div>
-                            <span className="text-gray-700 font-medium">{task.assignedTo.name}</span>
+                return (
+                  <tr key={task._id} className="hover:bg-gray-50 group">
+                    <td className="px-4 py-3">
+                      <p className="font-medium text-gray-900">{task.title}</p>
+                      {task.description && (
+                        <p className="text-xs text-gray-400 mt-0.5 truncate max-w-[200px]">{task.description}</p>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-gray-500 text-xs">{task.project?.title || '—'}</td>
+                    <td className="px-4 py-3">
+                      {task.assignedTo ? (
+                        <div className="flex items-center gap-2">
+                          <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center text-xs font-semibold text-blue-700 shrink-0">
+                            {task.assignedTo.name?.charAt(0).toUpperCase()}
                           </div>
-                        ) : (
-                          <span className="text-gray-400 font-medium italic">Unassigned</span>
-                        )}
-                      </td>
-                      <td className="px-6 py-4">
-                        <PriorityBadge priority={task.priority} />
-                      </td>
-                      <td className="px-6 py-4">
-                        {task.dueDate ? (
-                          <span className={`font-medium ${overdue ? 'text-red-600 bg-red-50 px-2 py-1 rounded-md' : 'text-gray-600'}`}>
-                            {overdue ? '⚠ ' : ''}{formatDate(task.dueDate)}
-                          </span>
-                        ) : (
-                          <span className="text-gray-400">—</span>
-                        )}
-                      </td>
-                      <td className="px-6 py-4">
-                        {canChangeStatus ? (
-                          <select
-                            className="text-sm font-medium border border-gray-200 bg-white rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 hover:border-gray-300 transition-all cursor-pointer shadow-sm"
-                            value={task.status}
-                            onChange={(e) => handleStatusChange(task, e.target.value)}
-                          >
-                            <option value="todo">Todo</option>
-                            <option value="in-progress">In Progress</option>
-                            <option value="completed">Completed</option>
-                          </select>
-                        ) : (
-                          <StatusBadge status={task.status} />
-                        )}
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        {isAdmin && (
-                          <button
-                            onClick={() => handleDelete(task._id)}
-                            className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all opacity-0 group-hover:opacity-100 focus:opacity-100"
-                            title="Delete Task"
-                          >
-                            <Trash2 size={18} />
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                          <span className="text-gray-700 text-xs">{task.assignedTo.name}</span>
+                        </div>
+                      ) : (
+                        <span className="text-gray-400 text-xs">—</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      <PriorityBadge priority={task.priority} />
+                    </td>
+                    <td className="px-4 py-3">
+                      {task.dueDate ? (
+                        <span className={`text-xs ${late ? 'text-red-500 font-medium' : 'text-gray-500'}`}>
+                          {late ? '⚠ ' : ''}{formatDate(task.dueDate)}
+                        </span>
+                      ) : (
+                        <span className="text-gray-300">—</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      {canEdit ? (
+                        <select
+                          className="text-xs border border-gray-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-400 bg-white cursor-pointer"
+                          value={task.status}
+                          onChange={(e) => updateStatus(task, e.target.value)}
+                        >
+                          <option value="todo">Todo</option>
+                          <option value="in-progress">In Progress</option>
+                          <option value="completed">Completed</option>
+                        </select>
+                      ) : (
+                        <StatusBadge status={task.status} />
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      {isAdmin && (
+                        <button
+                          onClick={() => deleteTask(task._id)}
+                          className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                              d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       )}
     </div>

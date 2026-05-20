@@ -1,24 +1,25 @@
 const Task = require('../models/Task');
 const Project = require('../models/Project');
 
+const taskPopulate = [
+  { path: 'assignedTo', select: 'name email' },
+  { path: 'project', select: 'title' },
+  { path: 'createdBy', select: 'name email' },
+];
+
 const getTasks = async (req, res) => {
   try {
     let tasks;
 
     if (req.user.role === 'admin') {
-      const adminProjects = await Project.find({ createdBy: req.user._id }).select('_id');
-      const projectIds = adminProjects.map((p) => p._id);
-      
-      tasks = await Task.find({ project: { $in: projectIds } })
-        .populate('assignedTo', 'name email')
-        .populate('project', 'title')
-        .populate('createdBy', 'name email')
+      const myProjects = await Project.find({ createdBy: req.user._id }).select('_id');
+      const ids = myProjects.map((p) => p._id);
+      tasks = await Task.find({ project: { $in: ids } })
+        .populate(taskPopulate)
         .sort({ createdAt: -1 });
     } else {
       tasks = await Task.find({ assignedTo: req.user._id })
-        .populate('assignedTo', 'name email')
-        .populate('project', 'title')
-        .populate('createdBy', 'name email')
+        .populate(taskPopulate)
         .sort({ createdAt: -1 });
     }
 
@@ -31,22 +32,17 @@ const getTasks = async (req, res) => {
 const getTasksByProject = async (req, res) => {
   try {
     const project = await Project.findById(req.params.projectId);
+    if (!project) return res.status(404).json({ message: 'Project not found' });
 
-    if (!project) {
-      return res.status(404).json({ message: 'Project not found' });
-    }
+    const uid = req.user._id.toString();
+    const canView =
+      project.createdBy.toString() === uid ||
+      project.members.some((m) => m.toString() === uid);
 
-    const isMember = project.members.some((m) => m.toString() === req.user._id.toString());
-    const isOwner = project.createdBy.toString() === req.user._id.toString();
-
-    if (!isMember && !isOwner) {
-      return res.status(403).json({ message: 'Access denied to this project' });
-    }
+    if (!canView) return res.status(403).json({ message: 'Access denied' });
 
     const tasks = await Task.find({ project: req.params.projectId })
-      .populate('assignedTo', 'name email')
-      .populate('project', 'title')
-      .populate('createdBy', 'name email')
+      .populate(taskPopulate)
       .sort({ createdAt: -1 });
 
     res.json(tasks);
@@ -59,18 +55,15 @@ const createTask = async (req, res) => {
   const { title, description, status, priority, dueDate, assignedTo, project } = req.body;
 
   if (!title || !project) {
-    return res.status(400).json({ message: 'Title and project are required' });
+    return res.status(400).json({ message: 'Title and project ID are required' });
   }
 
   try {
-    const projectDoc = await Project.findById(project);
+    const proj = await Project.findById(project);
+    if (!proj) return res.status(404).json({ message: 'Project not found' });
 
-    if (!projectDoc) {
-      return res.status(404).json({ message: 'Project not found' });
-    }
-
-    if (projectDoc.createdBy.toString() !== req.user._id.toString()) {
-      return res.status(403).json({ message: 'Only the project admin can create tasks' });
+    if (proj.createdBy.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ message: 'Only the project owner can add tasks' });
     }
 
     const task = await Task.create({
@@ -84,11 +77,7 @@ const createTask = async (req, res) => {
       createdBy: req.user._id,
     });
 
-    const populated = await Task.findById(task._id)
-      .populate('assignedTo', 'name email')
-      .populate('project', 'title')
-      .populate('createdBy', 'name email');
-
+    const populated = await Task.findById(task._id).populate(taskPopulate);
     res.status(201).json(populated);
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -97,15 +86,8 @@ const createTask = async (req, res) => {
 
 const getTaskById = async (req, res) => {
   try {
-    const task = await Task.findById(req.params.id)
-      .populate('assignedTo', 'name email')
-      .populate('project', 'title')
-      .populate('createdBy', 'name email');
-
-    if (!task) {
-      return res.status(404).json({ message: 'Task not found' });
-    }
-
+    const task = await Task.findById(req.params.id).populate(taskPopulate);
+    if (!task) return res.status(404).json({ message: 'Task not found' });
     res.json(task);
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -115,39 +97,30 @@ const getTaskById = async (req, res) => {
 const updateTask = async (req, res) => {
   try {
     const task = await Task.findById(req.params.id);
-
-    if (!task) {
-      return res.status(404).json({ message: 'Task not found' });
-    }
+    if (!task) return res.status(404).json({ message: 'Task not found' });
 
     const isAdmin = req.user.role === 'admin';
-    const isAssigned = task.assignedTo && task.assignedTo.toString() === req.user._id.toString();
+    const isAssignee = task.assignedTo?.toString() === req.user._id.toString();
 
-    if (!isAdmin && !isAssigned) {
+    if (!isAdmin && !isAssignee) {
       return res.status(403).json({ message: 'You can only update tasks assigned to you' });
     }
 
-    if (!isAdmin) {
-      if (req.body.status) {
-        task.status = req.body.status;
-      }
+    if (isAdmin) {
+      // admin can change everything
+      const fields = ['title', 'description', 'status', 'priority', 'dueDate', 'assignedTo'];
+      fields.forEach((f) => {
+        if (req.body[f] !== undefined) {
+          task[f] = req.body[f] || (f === 'assignedTo' ? null : task[f]);
+        }
+      });
     } else {
-      const { title, description, status, priority, dueDate, assignedTo } = req.body;
-      if (title) task.title = title;
-      if (description !== undefined) task.description = description;
-      if (status) task.status = status;
-      if (priority) task.priority = priority;
-      if (dueDate !== undefined) task.dueDate = dueDate;
-      if (assignedTo !== undefined) task.assignedTo = assignedTo || null;
+      // members can only move the status
+      if (req.body.status) task.status = req.body.status;
     }
 
     await task.save();
-
-    const updated = await Task.findById(task._id)
-      .populate('assignedTo', 'name email')
-      .populate('project', 'title')
-      .populate('createdBy', 'name email');
-
+    const updated = await Task.findById(task._id).populate(taskPopulate);
     res.json(updated);
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -157,29 +130,18 @@ const updateTask = async (req, res) => {
 const deleteTask = async (req, res) => {
   try {
     const task = await Task.findById(req.params.id);
+    if (!task) return res.status(404).json({ message: 'Task not found' });
 
-    if (!task) {
-      return res.status(404).json({ message: 'Task not found' });
-    }
-
-    const project = await Project.findById(task.project);
-
-    if (!project || project.createdBy.toString() !== req.user._id.toString()) {
-      return res.status(403).json({ message: 'Only the project admin can delete tasks' });
+    const proj = await Project.findById(task.project);
+    if (!proj || proj.createdBy.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ message: 'Only the project owner can delete tasks' });
     }
 
     await task.deleteOne();
-    res.json({ message: 'Task deleted successfully' });
+    res.json({ message: 'Task deleted' });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
 };
 
-module.exports = {
-  getTasks,
-  getTasksByProject,
-  createTask,
-  getTaskById,
-  updateTask,
-  deleteTask,
-};
+module.exports = { getTasks, getTasksByProject, createTask, getTaskById, updateTask, deleteTask };

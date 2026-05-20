@@ -1,23 +1,23 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 
-const generateToken = (id) => {
-  return jwt.sign({ id }, process.env.JWT_SECRET, {
+function makeToken(userId) {
+  return jwt.sign({ id: userId }, process.env.JWT_SECRET, {
     expiresIn: process.env.JWT_EXPIRES_IN || '7d',
   });
-};
+}
 
 const register = async (req, res) => {
   const { name, email, password, role } = req.body;
 
   if (!name || !email || !password) {
-    return res.status(400).json({ message: 'Name, email, and password are required' });
+    return res.status(400).json({ message: 'Name, email and password are all required' });
   }
 
   try {
-    const existingUser = await User.findOne({ email });
-    if (existingUser) {
-      return res.status(400).json({ message: 'Email already in use' });
+    const exists = await User.findOne({ email });
+    if (exists) {
+      return res.status(400).json({ message: 'An account with that email already exists' });
     }
 
     const user = await User.create({ name, email, password, role });
@@ -27,10 +27,11 @@ const register = async (req, res) => {
       name: user.name,
       email: user.email,
       role: user.role,
-      token: generateToken(user._id),
+      token: makeToken(user._id),
     });
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    console.error('register error:', err.message);
+    res.status(500).json({ message: 'Something went wrong, try again' });
   }
 };
 
@@ -45,7 +46,7 @@ const login = async (req, res) => {
     const user = await User.findOne({ email });
 
     if (!user || !(await user.matchPassword(password))) {
-      return res.status(401).json({ message: 'Invalid email or password' });
+      return res.status(401).json({ message: 'Wrong email or password' });
     }
 
     res.json({
@@ -53,20 +54,17 @@ const login = async (req, res) => {
       name: user.name,
       email: user.email,
       role: user.role,
-      token: generateToken(user._id),
+      token: makeToken(user._id),
     });
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    res.status(500).json({ message: 'Login failed, try again' });
   }
 };
 
+// just returns the logged-in user's info
 const getMe = async (req, res) => {
-  res.json({
-    _id: req.user._id,
-    name: req.user.name,
-    email: req.user.email,
-    role: req.user.role,
-  });
+  const { _id, name, email, role } = req.user;
+  res.json({ _id, name, email, role });
 };
 
 module.exports = { register, login, getMe };
