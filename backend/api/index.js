@@ -7,10 +7,16 @@ dotenv.config();
 
 const app = express();
 
+// allow all origins — tighten this later with FRONTEND_URL if needed
 app.use(cors({
-  origin: process.env.FRONTEND_URL || '*',
-  credentials: true,
+  origin: '*',
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
 }));
+
+// handle preflight for all routes
+app.options('*', cors());
+
 app.use(express.json());
 
 app.use('/api/auth', require('../routes/authRoutes'));
@@ -22,16 +28,13 @@ app.get('/', (req, res) => {
   res.json({ message: 'API is up' });
 });
 
-// keep one connection alive across serverless invocations
 let connected = false;
 
 const connectDB = async () => {
   if (connected) return;
-
   if (!process.env.MONGO_URI) {
-    throw new Error('MONGO_URI is not set in environment variables');
+    throw new Error('MONGO_URI is not set');
   }
-
   await mongoose.connect(process.env.MONGO_URI);
   connected = true;
 };
