@@ -1,4 +1,3 @@
-// Vercel serverless entry point — wraps the Express app
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
@@ -14,27 +13,36 @@ app.use(cors({
 }));
 app.use(express.json());
 
-// Routes
 app.use('/api/auth', require('../routes/authRoutes'));
 app.use('/api/projects', require('../routes/projectRoutes'));
 app.use('/api/tasks', require('../routes/taskRoutes'));
 app.use('/api/dashboard', require('../routes/dashboardRoutes'));
 
 app.get('/', (req, res) => {
-  res.json({ message: 'Team Task Manager API is running' });
+  res.json({ message: 'API is up' });
 });
 
-// Reuse the mongoose connection across warm lambda invocations
-let isConnected = false;
+// keep one connection alive across serverless invocations
+let connected = false;
 
 const connectDB = async () => {
-  if (isConnected) return;
+  if (connected) return;
+
+  if (!process.env.MONGO_URI) {
+    throw new Error('MONGO_URI is not set in environment variables');
+  }
+
   await mongoose.connect(process.env.MONGO_URI);
-  isConnected = true;
+  connected = true;
 };
 
-// Vercel expects a default export of the handler
 module.exports = async (req, res) => {
-  await connectDB();
+  try {
+    await connectDB();
+  } catch (err) {
+    console.error('DB connect error:', err.message);
+    return res.status(500).json({ message: 'Database connection failed: ' + err.message });
+  }
+
   return app(req, res);
 };
